@@ -1,0 +1,109 @@
+---
+title: "Lecture 6"
+output: html_notebook
+---
+
+## Simple Correspondence Analysis
+
+```{r}
+selikoff.dat <- matrix(c(310,212,21,25,7,36,158,35,102,35,0,9,17,49,51,0,0,4,18,28), nrow = 5)
+dimnames(selikoff.dat) <- list(c("0-9","10-19","20-29","30-39","40+"),c("None","Grade 1","Grade 2","Grade 3"))
+```
+
+```{r}
+P = selikoff.dat/1117
+dI = diag(apply(P, 1, sum),5 ,5)
+dJ = diag(apply(P, 2, sum),4 ,4)
+rr = rowSums(P)
+cc = colSums(P)
+CRP <- solve(dI)%*%P - rep(1, times= 5)%*%t(apply(P, 2, sum))
+CCP <- solve(dJ)%*%t(P) - rep(1, times = 4)%*%t(apply(P,1,sum))                                     
+```
+
+## Eigen Decomposition
+
+```{r}
+Z = solve(sqrt(dI))%*%(P - rr%*%t(cc))%*%solve(sqrt(dJ))
+eigen(Z%*%t(Z))
+eigen(t(Z)%*%Z)
+```
+
+### Standard Coords
+
+```{r}
+svdZ = svd(Z)
+A = svdZ$u # row scores
+dimnames(A)[1] = dimnames(P)[1]
+B = svdZ$v # col scores
+dimnames(B)[1] = dimnames(P)[2]
+```
+
+```{r}
+A[,1:2]
+B[,1:2]
+```
+
+## Principal Coordinates
+
+```{r}
+dlambda = diag(svdZ$d)
+F = sqrt(solve(dI))%*%A%*%dlambda
+dimnames(F)[1] = dimnames(P)[1]
+F[,1:2]
+```
+
+```{r}
+G = sqrt(solve(dJ))%*%B%*%dlambda
+dimnames(G)[1] = dimnames(P)[2]
+G[,1:2]
+```
+
+```{r}
+plot(F[,1],F[,2],col = "red", xlim = c(-1,1.6), ylim = c(-1,1))
+points(G[,1],G[,2]) 
+abline(h = 0, v=0)
+```
+
+## Centre of Coordinates
+
+```{r}
+apply(dI%*%F,2,sum)
+apply(dJ%*%G,2,sum)
+```
+
+### Row Coordinate
+
+```{r}
+100*sum(dI[1,1]*F[1,]^2)/sum(svdZ$d^2)
+100*sum(dI[2,2]*F[2,]^2)/sum(svdZ$d^2)
+100*sum(dI[3,3]*F[3,]^2)/sum(svdZ$d^2)
+100*sum(dI[4,4]*F[4,]^2)/sum(svdZ$d^2)
+100*sum(dI[5,5]*F[5,]^2)/sum(svdZ$d^2)
+```
+
+### Column Coordinates
+
+```{r}
+100*sum(dJ[1,1]*G[1,]^2)/sum(svdZ$d^2)
+100*sum(dJ[2,2]*G[2,]^2)/sum(svdZ$d^2)
+100*sum(dJ[3,3]*G[3,]^2)/sum(svdZ$d^2)
+100*sum(dJ[4,4]*G[4,]^2)/sum(svdZ$d^2)
+```
+
+## Principal and Total Inertia
+
+```{r}
+# Principal Inertia
+svdZ$d^2
+
+# Total Inertia
+sum(svdZ$d^2)
+
+# Percentage contribution to the total inertia of each axis
+100*svdZ$d^2/sum(svdZ$d^2)
+
+# Cumulative % contribution to the total inertia of each axis
+cumsum(100*svdZ$d^2/sum(svdZ$d^2))
+```
+
+When looking at the cumulative sum, the second value tells us how much of the Total Inertia the first two Singular Values account for.

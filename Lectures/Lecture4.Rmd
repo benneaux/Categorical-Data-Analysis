@@ -1,0 +1,112 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+## IxJ Contingency Tables
+
+A number of statistics exist
+
+### Pearson's Ratio
+
+Difference between observed and expected. Null is rejected if at least one of the cells has a ratio $\neq$ 1.
+
+Chi-sq measures the squared diffence between the Pearson Ratios.
+
+```{r}
+selikoff.dat <- matrix(c(310,212,21,25,7,36,158,35,102,35,0,9,17,49,51,0,0,4,18,28), nrow = 5)
+dimnames(selikoff.dat) <- list(c("0-9","10-19","20-29","30-39","40+"),c("None","Grade 1","Grade 2","Grade 3"))
+
+selikoff.dat
+(dI = diag(apply(selikoff.dat/1117,1,sum), 5, 5))
+(dJ = diag(apply(selikoff.dat/1117,2,sum), 4, 4))
+
+# Note: sum of di and dj add up to one (each).
+
+# We have di (IxI) selikoff.dat (IxJ) dj (JxJ), so 
+alpha = solve(dI)%*%(selikoff.dat/1117)%*%solve(dJ)
+
+# In alpha, the further way away from 1, the further away from independence.
+alpha
+```
+
+### Pearson's Residual
+
+We subtract one so that independence is represented by 0.
+
+```{r}
+alpha-1
+```
+
+### Standardised Residual
+
+Most common.
+
+```{r}
+rij = sqrt(dI)%*%(alpha-1)%*%sqrt(dJ)
+rij
+
+1117*sum(rij^2)
+```
+
+Because these are standard normally distributed, therefore the Chi-squared stat is n times the sum of squares times rij. Anything positive indicates that we have observed more than we would expect under independence.
+
+Looking at the matrix helps understand where independence may or may not fail.
+
+### Adjusted Standardised Residual
+
+We are assuming that the expectation = variance but agresti says no.
+
+```{r}
+DI = diag(apply(selikoff.dat/1117,1,sum)/(1-apply(selikoff.dat/1117,1,sum)), 5, 5)
+DJ = diag(apply(selikoff.dat/1117,2,sum)/(1-apply(selikoff.dat/1117,2,sum)), 4, 4)
+rtildeij = sqrt(DI)%*%(alpha-1)%*%sqrt(DJ)
+sqrt(1117)*rtildeij
+```
+We then test the cell frequencies against standard normal values (i.e. $\pm 1.96$)
+
+
+### Generalised Standardised Residual
+
+Generalised = standardised when $\lamda=0$.
+
+If expectation > Variance then underdispersed. (Very Rare)
+If expectation < Variance the overdispersed. (Most Common).
+
+```{r}
+chisq
+```
+
+## Variance Stability
+
+Generally speaking, the variance is way too big for categorical data. To deal with this, we work with transformations, namely the Freeman-Tukey.
+
+### Modified Chi-Squared
+
+Replaces what's expected (in the denominator) with what's observed. Problem comes with 0 cell frequencies. To adjust either replace with either 0.5 or $1/(I + J)$.
+
+### Log-Likelihood Ratio Statistic
+
+
+### Modified Log-Likelihood Ratio Statistic 
+
+Swaps the terms around (what's observed vs. what's expected).
+
+## Power Divergence Statistic
+
+### Goodman-Kruskal Tau
+
+```{r}
+dum = matrix(0, nrow = 5, ncol = 4)
+for (i in 1:5){
+for (j in 1:4){
+dum[i, j] = dI[i]*(P[i,j]/dI[i] - dJ[j])^2
+}}
+
+tau = sum(dum)/(1 - sum(cc^2)) > tau
+C = (1117 - 1)*(4 - 1)*tau
+C
+1 - pchisq(C, (5 - 1)*(4 - 1)) [1] 0
+```
+

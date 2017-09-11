@@ -1,0 +1,136 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Pearson’s Statistic for a 2x2 Table
+
+### Asbestos Example
+
+```{r}
+options(digits = 9)
+asbestos.dat <- matrix(c(522,53,203,339), nrow = 2)
+dimnames(asbestos.dat) = list(c("0-19","20+"),c("No","Yes"))
+asbestos.dat
+
+# matrix of proportions (matrix / sample size)
+asbestos.dat/1117
+
+#apply(asbestos.dat/1117,1,sum)
+rowSums(asbestos.dat)/1117
+
+#apply(asbestos.dat/1117,2,sum)
+colSums(asbestos.dat)/1117
+
+# Chi-Squared Statistic computation for the asbestos.dat data.
+1117*(0.46732319-0.64906*0.5147717)^2/(0.64906 + *0.35094*0.5147717*0.4852283)
+
+chisq.test(asbestos.dat, correct = FALSE)
+```
+
+Here, correct = F has been specified to ensure Yates’ continuity correction (see next slides) is not imposed – by default the correction is incorporated into the analysis of a 2x2 contingency table.
+
+Yates (1934) argued that the chi-squared statistic with 1 degree of freedom gives p-values from Pearson’s statistic that typically underestimate the true p-values. As a result he proposed an adjustment to Pearson’s chi-squared statistic of a 2x2 contingency table (see lecture notes).
+
+```{r}
+# Including Yates' continuity correction.
+chisq.test(asbestos.dat)
+
+# Calcluation including Yates continuity correction.
+1117*(abs(0.46732319-0.64906*0.5147717) - 0.5/1117)^2/(0.64906*0.35094*0.5147717*0.4852283)
+```
+
+
+## Approximations of the Tetrachoric Correlation
+
+To overcome the computational difficulties that he faced at the time, Pearson (1900, pg 7) proposed a number of approximations to his correlation (see notes).
+
+```{r}
+library(psych) # required for the tetrachoric function
+tetrachoric(asbestos.dat)
+```
+
+```{r}
+selikoff.dat <- matrix(c(310,212,21,25,7,36,158,35,102,35,0,9,17,49,51,0,0,4,18,28), nrow = 5)
+dimnames(selikoff.dat) <- list(c("0-9","10-19","20-29","30-39","40+"),c("None","Grade 1","Grade 2","Grade 3"))
+selikoff.dat
+rowSums(selikoff.dat)
+colSums(selikoff.dat)
+```
+
+
+```{r}
+oddsratio.exe <- function (N, acc) {
+  round((N[1,1]*N[2,2])/(N[1,2]*N[2,1]), digits = acc)
+}
+oddsratio.exe(asbestos.dat, acc = 3)
+
+edwards.odds.exe <- function(N, b, acc){
+  OR = oddsratio.exe(N, acc)
+  EO = round((OR^b - 1)/(OR^b+1), digits = acc)
+  VarO = ((4*b^2*OR^(2*b))/(OR^b + 1)^4)*(N[1,1] + N[1,2] + N[2,1] + N[2,2])^(-1)
+  return(list("OR Value" = EO, "OR Variance" = VarO))
+}
+
+# Yule's Q
+edwards.odds.exe(asbestos.dat, b = 1, acc = 4)
+
+# Yule's Y
+edwards.odds.exe(asbestos.dat, b = 0.5, acc = 4)
+
+# Digby's H
+edwards.odds.exe(asbestos.dat, b = 3/4, acc = 4)
+
+# Edward's J
+edwards.odds.exe(asbestos.dat, b = pi/4, acc = 4)
+```
+
+## Breslow-Day Test
+
+```{r}
+breslowday.test = function(x, OR=NA){
+ ## function to compute the Breslow Day test of homogeneity
+ ## for a 2 by 2 by k table
+ ## x is a three dim array, 2x2xk
+ if(is.na(OR)) {
+   pooled = apply(x,1:2,sum)
+   OR = pooled[1,1] * pooled[2,2] / pooled[1,2] / pooled[2,1]
+ }
+ k = dim(x)[3]
+ n11k = x[1,1,]
+ n21k = x[2,1,]
+ n12k = x[1,2,]
+ n22k = x[2,2,]
+ row1sums = n11k + n12k
+ row2sums = n21k + n22k
+ col1sums = n11k + n21k
+ Amax = apply(cbind(row1sums,col1sums),1,min)
+  ## Astar must be no more than col1sums and no more than row1sums
+ bb = row2sums +row1sums * OR - col1sums*(1-OR)
+ determ = sqrt(bb^2 + 4 * (1-OR) *  OR * row1sums * col1sums)
+ Astar = (-bb + cbind( -determ, determ))/ (2 -2*OR)
+ Astar = ifelse(Astar[,1] <= Amax & Astar[,1] >= 0, Astar[,1], Astar[,2])
+ # print(Astar)
+ Bstar = row1sums - Astar
+ Cstar = col1sums - Astar
+ Dstar = row2sums - col1sums + Astar
+ Var = apply(1 / cbind(Astar,Bstar,Cstar,Dstar), 1, sum)^(-1)
+ # print(Var)
+ X2 = sum( (x[1,1,] - Astar)^2/Var )
+ pvalue = 1 - pchisq(X2,k-1)
+ return(unlist(list(OR = OR, Stat = X2, df = k-1, pvalue = pvalue)))
+}
+
+biomassTB.Salary = array(c(38,12,102,141,12,9,136,383),
+                         dim=c(2,2,2),
+                         dimnames=list(exposure=c("exposed","not"),
+                                       disease=c("case","control"),
+                                       salary=c("<1000",">=1000")))
+
+breslowday.test( biomassTB.Salary)
+#  breslowday.test( biomassTB.Salary, 4.02)
+#        OR       Stat         df     pvalue 
+#4.15000000 0.07150466 1.00000000 0.78915846 
+
+```
+
