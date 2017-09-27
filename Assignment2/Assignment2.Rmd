@@ -1,0 +1,397 @@
+---
+title: "Assignment 2"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r setup, include = FALSE}
+# library(ca)
+# library(rgl)
+library(reshape)
+library(ggplot2)
+# library(ggforce)
+
+selikoff.dat <- readRDS("Data/selikoff.rds")
+sibs.dat     <- readRDS("Data/siblings.rds")
+expsibs.dat  <- readRDS("Data/expsibs.rds")
+```
+
+# Part 1: Dimension Reduction
+
+## Question 1
+
+## Question 2
+### Setup
+We are given:
+
+$$
+N = 
+\begin{pmatrix}
+4 & 8 & 8 \\
+3 & 6 & -9
+\end{pmatrix}
+$$
+Therefore, 
+$$
+N^T = 
+\begin{pmatrix}
+4 & 3 \\
+8 & 6 \\
+8 & -9
+\end{pmatrix}
+$$
+### a)
+
+#### i) Without R
+
+$$
+N^TN 
+=
+\begin{pmatrix}
+4 & 3 \\
+8 & 6 \\
+8 & -9
+\end{pmatrix}
+\times
+\begin{pmatrix}
+4 & 8 & 8 \\
+3 & 6 & -9
+\end{pmatrix}
+= \begin{pmatrix}
+25 & 50 & 5 \\
+50 & 100 & 10 \\
+5 & 10 & 145
+\end{pmatrix}
+$$
+The characteristic equation of $N^TN$ is:
+
+$$
+\begin{aligned}
+-18000\lambda + 270\lambda^2 - \lambda^3 &= 0 \\
+\implies -(\lambda - 150)(\lambda - 120) \lambda &= 0 \\
+\end{aligned}
+$$
+which gives us $\lambda_1 = 150, \lambda_2 = 120, \lambda_3 = 0$.
+
+#### ii) With R
+
+```{r}
+# Calculate the matrix
+N <- matrix(c(4,3,8,6,8,-9), ncol = 3)
+NT <- t(N)
+NTN <- NT %*% N
+# use eigen() to get the values and vectors
+NTNevecs <- eigen(NTN)$vectors
+NTNevals <- eigen(NTN)$values
+# List the values and vectors together. Note: because the eigen() function automatically normalises
+# the eigenvectors, I have multiplied the eigenvectors by the normalising constant that comes from 
+# part i) in order to get matching results.
+(NTNv1 <- list("Lambda1" = NTNevals[[1]], "EV1"= NTNevecs[,1]*sqrt(30)))
+(NTNv2 <- list("Lambda2" = NTNevals[[2]], "EV2"= NTNevecs[,2]*sqrt(6)))
+(NTNv3 <- list("Lambda3" = round(NTNevals[[3]]), "EV3"= round(NTNevecs[,3]*sqrt(5))))
+```
+
+### b)
+#### i) Without R
+
+$$
+NN^T 
+= 
+\begin{pmatrix}
+4 & 8 & 8 \\
+3 & 6 & -9
+\end{pmatrix}
+\times
+\begin{pmatrix}
+4 & 3 \\
+8 & 6 \\
+8 & -9
+\end{pmatrix} 
+= 
+\begin{pmatrix}
+144 & -12 \\
+-12 & 126
+\end{pmatrix}
+$$
+
+The characteristic equation of $NN^T$ is:
+
+$$
+\begin{aligned}
+18000 - 270\lambda + \lambda^2 &= 0 \\
+\implies (\lambda - 150)(\lambda - 120) &= 0 \\
+\end{aligned}
+$$
+which gives us $\lambda_1 = 150, \lambda_2 = 120$.
+
+#### ii) With R
+```{r}
+N <- matrix(c(4,3,8,6,8,-9), ncols = 3)
+NT <- matrix(c(4,8,8,3,6,-9), ncols = 2)
+```
+
+#### ii) With R
+
+```{r}
+N <- matrix(c(4,3,8,6,8,-9), ncol = 3)
+NT <- t(N)
+NNT <- N %*% NT
+NNTevals <- eigen(NNT)$values
+NNTevecs <- eigen(NNT)$vectors
+
+(NNTv1 <- list("Lambda1" = NNTevals[[1]], "EV1"= NNTevecs[1,]))
+(NNTv2 <- list("Lambda2" = NNTevals[[2]], "EV2"= NNTevecs[2,]))
+```
+
+### c)
+
+We perform an _Singular Value Decomposition_ in __R__ by using the `svd()` function.
+```{r}
+(SVDN <- svd(N))
+crossprod(NNTv1$EV1, SVDN$u[,1])
+crossprod(NNTv2$EV2,SVDN$u[,2])
+NNTv2$EV2%*%SVDN$u[,2]
+```
+
+# Part 2: Simple Correspondence Analysis
+
+## Question 3
+
+## Question 4
+
+```{r, fig.width=4.5,fig.height=4.5, fig.align="centre"}
+### Complex Elliptical
+plotEllipse.exe <- function(df,             # an IxJ contingency table 
+                            xlim = c(-1,1), # x limits for chart
+                            ylim = c(-1,1),  # y limits for chart
+                            CoordType = "Principal", # either Principal or Standard
+                            ExtraAxes = TRUE # Take into account info from Principal Axes > 2
+                            ){
+  # Definitions:   
+  N = sum(df) # Total observations
+  P =  df/N   # Matrix of proportions
+  M = min(nrow(df),ncol(df))-1 # The number of Principal Axes.
+  dof = (nrow(df)-1)*(ncol(df) - 1) # degrees of freedom
+  dI =  diag(apply(P, 1, sum),nrow(df) ,nrow(df)) # Diagonal matrix of P matrix row totals
+  dJ =  diag(apply(P, 2, sum),ncol(df) ,ncol(df)) # Diag matrix of P matrix column totals
+  rr =  rowSums(P) # Row sums of P matrix
+  cc =  colSums(P) # Column sums of P matrix
+  Z = solve(sqrt(dI))%*%(P - rr%*%t(cc))%*%solve(sqrt(dJ))
+  svdZ = svd(Z) # Singular value decomposition of Z
+  
+
+  # Working:
+  A = svdZ$u # row scores
+  B = svdZ$v # col scores
+  dimnames(A)[1] = dimnames(P)[1]
+  dimnames(B)[1] = dimnames(P)[2]
+  
+  if(CoordType == "Standard"){
+  F = svdZ$u
+  G = svdZ$v
+  dimnames(F)[1] = dimnames(P)[1]
+  dimnames(G)[1] = dimnames(P)[2]
+  ExtraAxes = FALSE # not sure about this. This edits the settings so the 
+                    # ExtraAxes information isn't added when calculating
+                    # the confidence region.
+  }
+  if(CoordType == "Principal"){
+  dlambda = diag(svdZ$d)
+  F = sqrt(solve(dI))%*%A%*%dlambda
+  G = sqrt(solve(dJ))%*%B%*%dlambda
+  dimnames(F)[1] = dimnames(P)[1]
+  dimnames(G)[1] = dimnames(P)[2]
+  }
+  
+  prininert = svdZ$d^2
+   totinert = sum(svdZ$d^2)
+       chi2 = totinert*N 
+  princoord = as.data.frame(rbind(F[,1:2], G[,1:2]))
+  
+  if(ExtraAxes==TRUE){
+  FF = vector(mode = "numeric", length = nrow(F))
+  FFF = vector(mode = "numeric", length = M-3)
+  extraF <- for(i in 1:nrow(F)){
+    for(j in 3:M){
+      FFF[j] = (F[i,j]/sqrt(prininert[j]))^2
+      FF[i] = sum(FFF[j])
+    }
+    
+  }
+  GG = vector(mode = "numeric", length = nrow(G))
+  GGG = vector(mode = "numeric", length = M - 3)
+  extraG <- for(i in 1:nrow(G)){
+    for(j in 3:M){
+      GGG[j] = (G[i,j]/sqrt(prininert[j]))^2
+      GG[i] = sum(GGG[j])
+    }
+    
+  }
+  } else {
+    FF = rep(0,nrow(P))
+    GG = rep(0, ncol(P))
+  }
+  
+  sMaj = matrix(nrow = nrow(P), ncol = 2)
+  for(i in 1:nrow(P)){
+    sMaj[i,1] = sqrt(prininert[1])*sqrt((qchisq(0.95,dof)/chi2)*(1/rowSums(P)[i] - FF[i]))
+    sMaj[i,2] = sqrt(prininert[2])*sqrt((qchisq(0.95,dof)/chi2)*(1/rowSums(P)[i] - FF[i]))
+  }
+  sMin = matrix(nrow = ncol(P), ncol = 2)
+  for(i in 1:ncol(P)){
+    sMin[i,1] = sqrt(prininert[1])*sqrt((qchisq(0.95,dof)/chi2)*(1/colSums(P)[i] - GG[i]))
+    sMin[i,2] = sqrt(prininert[2])*sqrt((qchisq(0.95,dof)/chi2)*(1/colSums(P)[i] - GG[i]))
+  }
+  
+    sMajMin = rbind(sMaj,sMin)
+  chartdata = cbind(princoord,sMajMin)
+  
+  ellipse <- function(sMaj,sMin, xc, yc, res = 100){
+    xp <- NULL
+    yp <- NULL
+    for(i in 0:res){
+      a  = (2 * pi * i)/res
+      x  = sMaj * cos(a)
+      y  = sMin * sin(a)
+      xp = c(xp, x + xc)
+      yp = c(yp, y + yc)
+    }
+    lines(xp, yp, type = "l", col = "light green", lwd = 0.6)
+    invisible()
+  }
+  plot(xlim, ylim, 
+       xlab = paste("First Principal Axis:", round(prininert[1]*100/totinert,2),"%"),
+       ylab = paste("Second Principal Axis:", round(prininert[2]*100/totinert,2),"%"),
+       type="n")
+  title(main = "Elliptical Confidence Intervals",
+        sub = list(paste("% Association attributed to Third Principal Axis and higher:",
+                         round(sum(prininert[3:length(prininert)])*100/totinert,2),
+                         "%"),
+                   cex = 0.8))
+    abline(v = 0, col = "grey")
+    abline(h = 0, col = "grey")
+    points(chartdata[,1:2], col = "red")
+  for(i in 1:nrow(chartdata)){
+    ellipse(sMaj = chartdata[i,3],
+            sMin = chartdata[i,4],
+            xc = chartdata[i,1],
+            yc = chartdata[i,2])
+  }
+  text(chartdata[,1:2], labels=rownames(chartdata), adj = c(0.5,-1),cex= 0.8)
+  text(xlim[1], ylim[2], labels = paste("Coordinate Type:",CoordType), adj = c(0.05,0.5), cex = 0.7, col = "dark grey")
+}
+
+plotEllipse.exe(selikoff.dat, xlim = c(-1,2))
+plotEllipse.exe(selikoff.dat, ExtraAxes = FALSE, xlim = c(-1,2))
+plotEllipse.exe(selikoff.dat, CoordType = "Standard")
+```
+
+
+
+
+# Part 3: Multiple Categorical Variables
+
+### e)
+Write an R function that performs a simple correspondence analysis on an IxJ contingency table. Make sure that the output consists of the principal coordinates, the inertia values and a two-dimensional correspondence plot.
+
+```{r}
+## TURN INTO FUNCTION
+# Selikoff's Data
+
+svdZ = svd(Z)
+A = svdZ$u
+dimnames(A)[1] = dimnames(P)[1]
+B = svdZ$v
+dimnames(B)[1] = dimnames(P)[2]
+
+# Principal Inertia
+svdZ$d^2
+# Total Inertia
+sum(svdZ$d^2)
+
+# Percentage contribution to the total inertia of each axis
+100*svdZ$d^2/sum(svdZ$d^2)
+
+# Cumulative % contribution to the total inertia of each axis
+cumsum(100*svdZ$d^2/sum(svdZ$d^2))
+
+# Principal Coordinates
+
+dlambda = diag(svdZ$d)
+F = sqrt(solve(dI))%*%A%*%dlambda
+dimnames(F)[1] = dimnames(P)[1]
+F
+G = sqrt(solve(dJ))%*%B%*%dlambda
+dimnames(G)[1] = dimnames(P)[2]
+G
+```
+
+
+## Question 5
+```{r}
+sib <- c(15,31,35,18,34,60,45,14,36,46,30,3,22,25,13,3,61,26,8,4,
+         17,60,63,15,53,96,74,15,70,45,39,9,67,40,24,2,79,31,7,1,
+         7,5,5,2,20,12,10,1,23,11,4,2,16,12,4,0,36,7,3,1)
+sib <- array(sib, dim = c(4,5,3))
+
+dimnames(sib) <- list("Years Of Schooling"=c("<12","12","13-16","17+"), "Number of Siblings"=c("0-1","2-3","4-5","6-7","8+"), Happiness=c("Not Too Happy","Pretty Happy","Very Happy"))
+sib
+```
+
+```{r Q5Func, warning = FALSE}
+# DONE
+ChisqFunc3D.exe <- function(array3){
+  
+  options(warn = FALSE)
+  
+  XIJ  = apply(array3, c(1,2), sum)
+  XIK  = apply(array3, c(1,3), sum)
+  XJK  = apply(array3, c(2,3), sum) 
+  XIJK = apply(array3,2,rbind)
+  
+  chisqIJ  = chisq.test(XIJ)
+  chisqIK  = chisq.test(XIK)
+  chisqJK  = chisq.test(XJK)
+  chisqIJK = chisq.test(XIJK)
+  
+  statIJ  = chisqIJ$statistic
+  statIK  = chisqIK$statistic
+  statJK  = chisqJK$statistic
+  statIJK = chisqIJK$statistic
+  statSum = sum(statIJ, statIK, statJK, statIJK)
+  
+  dfIJ  = chisqIJ$parameter
+  dfIK  = chisqIK$parameter
+  dfJK  = chisqJK$parameter
+  dfIJK = chisqIJK$parameter
+  dfX2  = prod(dim(array3)-1)
+  
+  pIJ  = round(chisqIJ$p.value,3)
+  pIK  = round(chisqIK$p.value,3)
+  pJK  = round(chisqJK$p.value,3)
+  pIJK = round(chisqIJK$p.value,3)
+  pX2  = round(1-pchisq(statSum, dfX2),5)
+  
+  out   = array(c(statIJ,statIK,statJK,statIJK,statSum,
+                 dfIJ,dfIK,dfJK,dfIJK,dfX2,
+                 pIJ,pIK,pJK,pIJK,pX2),
+               dim = c(5,3))
+  
+  dimnames(out) = list(c("XIJ","XIK","XJK","XIJK","X2"),
+                      c("X2","DoF","P.value"))
+out
+}
+
+(ChisqFunc3D.exe(sib))
+```
+
+
+## Question 6
+
+```{r, eval = FALSE, echo = TRUE}
+# mjca(expsibs.dat)
+# names(mjca(expsibs.dat))
+mjca_expsibs <- mjca(expsibs.dat)
+```
+
